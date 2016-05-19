@@ -1,0 +1,6 @@
+[package]
+name = "rusty-jwt"
+version = "0.1.0"
+authors = ["Brayden Winterton <bwinterton@gmail.com>"]
+
+[dependencies]
