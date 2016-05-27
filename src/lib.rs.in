@@ -1,0 +1,104 @@
+extern crate rustc_serialize;
+
+use rustc_serialize::base64::FromBase64;
+use serde_json::Value;
+
+pub struct Jwt {
+    header: Value,
+    payload: Value,
+    signature: String,
+}
+
+pub fn new(input: &str) -> Result<Jwt, String> {
+    let mut jwt = Jwt {
+        header: Value::Null,
+        payload: Value::Null,
+        signature: "".to_string(),
+    };
+    let jwt_parts: Vec<&str> = input.split(".").collect();
+    if jwt_parts.len() != 3 {
+        return Err("Malformed JWT".to_string());
+    }
+    let jwt_header = match decode(jwt_parts[0]) {
+        Ok(s) => s,
+        Err(_) => return Err("Error decoding header".to_string()),
+    };
+    let jwt_payload = match decode(jwt_parts[1]) {
+        Ok(s) => s,
+        Err(_) => return Err("Error decoding payload".to_string()),
+    };
+    jwt.signature = jwt_parts[2].to_owned();
+
+    jwt.header = match serde_json::from_str(&jwt_header) {
+        Ok(m) => m,
+        Err(e) => return Err(format!("Error decoding header json: {}", e)),
+    };
+    jwt.payload = match serde_json::from_str(&jwt_payload) {
+        Ok(m) => m,
+        Err(e) => return Err(format!("Error decoding payload json: {}", e)),
+    };
+    Ok(jwt)
+}
+
+fn decode(input: &str) -> Result<String, String> {
+    let bytes = match input.from_base64() {
+        Ok(s) => s,
+        Err(_) => return Err("Error decoding".to_string()),
+    };
+    let decoded = match String::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return Err("Error from utf8".to_string()),
+    };
+    Ok(decoded)
+}
+
+
+#[cfg(test)]
+mod test {
+
+    use super::new;
+    use super::decode;
+
+    #[test]
+    fn test_new() {
+        let jwt_input = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0\
+                         NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.\
+                         TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ"
+            .to_string();
+
+        let jwt = new(&jwt_input).unwrap();
+
+        assert_eq!("HS256",
+                   jwt.header.find("alg").unwrap().as_string().unwrap());
+        assert_eq!("JWT", jwt.header.find("typ").unwrap().as_string().unwrap());
+        assert_eq!("John Doe",
+                   jwt.payload.find("name").unwrap().as_string().unwrap());
+        assert_eq!("1234567890",
+                   jwt.payload.find("sub").unwrap().as_string().unwrap());
+        assert_eq!(true,
+                   jwt.payload.find("admin").unwrap().as_boolean().unwrap());
+    }
+
+    #[test]
+    fn test_new_malformed() {
+        let input = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+        let jwt = new(&input);
+        assert!(jwt.is_err());
+    }
+
+    #[test]
+    fn test_new_empty() {
+        let input = "";
+        let jwt = new(&input);
+        assert!(jwt.is_err());
+    }
+
+    #[test]
+    fn test_decode() {
+        let to_decode = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
+        let expected = "{\"alg\":\"HS256\",\
+                      \"typ\":\"JWT\"}";
+        let decoded = decode(&to_decode).unwrap();
+        assert_eq!(expected, decoded);
+    }
+}

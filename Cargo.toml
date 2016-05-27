@@ -2,6 +2,18 @@
 name = "rusty-jwt"
 version = "0.1.0"
 authors = ["Brayden Winterton <bwinterton@gmail.com>"]
+build = "build.rs"
+
+[features]
+default = ["serde_codegen", "syntex"]
+nightly = ["serde_macros"]
+
+[build-dependencies]
+serde_codegen = { version = "*", optional = true }
+syntex = { version = "*", optional = true }
 
 [dependencies]
 rustc-serialize = "~0.3"
+serde = "*"
+serde_json = "*"
+serde_macros = { version = "*", optional = true }
